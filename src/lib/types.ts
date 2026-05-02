@@ -21,6 +21,7 @@ export type Template = {
   id: string;
   name: string;
   purpose: string;
+  sample: string;
 };
 
 export type Phase = {
