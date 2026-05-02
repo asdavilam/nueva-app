@@ -45,8 +45,18 @@ npm run dev
 ## Supabase
 
 1. Crear proyecto en Supabase.
-2. Ejecutar SQL de `/supabase/schema.sql`.
+2. Ejecutar SQL de [`/Users/aletz/Documents/New project/supabase/schema.sql`](/Users/aletz/Documents/New%20project/supabase/schema.sql).
+3. Ejecutar SQL de [`/Users/aletz/Documents/New project/supabase/operational_upgrade.sql`](/Users/aletz/Documents/New%20project/supabase/operational_upgrade.sql).
 3. Activar proveedores de Auth que necesites.
+
+## Funcionalidad operativa actual
+
+- Login por magic link (correo)
+- Checklist 21 días persistente por usuario
+- Estado de tareas, checkbox, fecha y notas guardados en `task_progress`
+- Registro rápido manual de ventas/gastos (`finance_entries`)
+- KPI mensual manual (`kpis`) con ticket promedio y margen estimado
+- Bitácora rápida (`notes`)
 
 ## Deploy Vercel
 
