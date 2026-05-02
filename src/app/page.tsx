@@ -158,8 +158,9 @@ export default function HomePage() {
 
   async function saveTemplate(templateId: string) {
     if (!supabase || !session?.user?.id) return;
+    const base = templates.find((t) => t.id === templateId)?.sample ?? "";
     const title = `template:${templateId}`;
-    const content = templateContent[templateId] ?? "";
+    const content = templateContent[templateId] ?? base;
     const { data: existing } = await supabase
       .from("notes")
       .select("id")
@@ -356,6 +357,10 @@ export default function HomePage() {
               {(section === "kpis" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">KPIs (captura manual)</h3>
+                <div className="mt-3 rounded-md border border-slate-700 bg-panelSoft p-3 text-xs text-slate-300">
+                  <p><span className="font-semibold text-slate-100">KDI/KPI:</span> son indicadores clave para medir cómo va tu negocio.</p>
+                  <p className="mt-1">Te sirven para decidir con datos, no con intuición. Ejemplo: ventas, gastos, ticket promedio y margen.</p>
+                </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                   <input value={kpiForm.periodMonth} onChange={(e) => setKpiForm((p) => ({ ...p, periodMonth: e.target.value }))} type="month" className="col-span-2 rounded-md border border-slate-700 bg-panelSoft px-2 py-2" />
                   <input value={kpiForm.sales} onChange={(e) => setKpiForm((p) => ({ ...p, sales: e.target.value }))} placeholder="Ventas" className="rounded-md border border-slate-700 bg-panelSoft px-2 py-2" />
@@ -381,11 +386,11 @@ export default function HomePage() {
                       <p className="font-medium">{t.name}</p>
                       <p className="text-xs text-muted">{t.purpose}</p>
                       <textarea
-                        value={templateContent[t.id] ?? ""}
+                        value={templateContent[t.id] ?? t.sample}
                         onChange={(e) => setTemplateContent((prev) => ({ ...prev, [t.id]: e.target.value }))}
                         rows={3}
                         className="mt-2 w-full rounded-md border border-slate-700 bg-slate-900 p-2 text-xs"
-                        placeholder="Escribe aquí tu formato personal..."
+                        placeholder="Personaliza esta plantilla para tu negocio..."
                       />
                       <button onClick={() => void saveTemplate(t.id)} className="mt-2 rounded-md bg-panelSoft px-3 py-1 text-xs">Guardar plantilla</button>
                     </div>
