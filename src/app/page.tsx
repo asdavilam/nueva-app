@@ -187,8 +187,13 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-6 p-4 md:grid-cols-[240px_1fr] md:p-6">
-        <aside className="rounded-lg border border-slate-800 bg-panel p-4">
+      <div className="mx-auto w-full max-w-[1400px] p-4 pb-24 md:grid md:grid-cols-[240px_1fr] md:gap-6 md:p-6 md:pb-6">
+        <div className="mb-4 rounded-lg border border-slate-800 bg-panel p-4 md:hidden">
+          <h1 className="text-lg font-semibold">Burger Business Blueprint</h1>
+          <p className="mt-1 text-sm text-muted">Cerebro administrativo</p>
+        </div>
+
+        <aside className="hidden rounded-lg border border-slate-800 bg-panel p-4 md:block">
           <h1 className="text-lg font-semibold">Burger Business Blueprint</h1>
           <p className="mt-1 text-sm text-muted">Cerebro administrativo</p>
           <button onClick={signOut} className="mt-3 flex items-center gap-2 rounded-md bg-panelSoft px-2 py-1 text-xs text-slate-200">
@@ -310,6 +315,16 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-panel/95 backdrop-blur md:hidden">
+        <div className="grid grid-cols-5 gap-1 px-2 py-2 text-[11px] text-slate-300">
+          <MobileNavItem icon={<LayoutDashboard size={14} />} label="Inicio" />
+          <MobileNavItem icon={<ClipboardList size={14} />} label="Checklist" />
+          <MobileNavItem icon={<BarChart3 size={14} />} label="KPIs" />
+          <MobileNavItem icon={<Target size={14} />} label="Roadmap" />
+          <MobileNavItem icon={<Flame size={14} />} label="Logros" />
+        </div>
+      </nav>
     </main>
   );
 }
@@ -385,5 +400,14 @@ function QuickAmountButton({ label, onClick }: { label: string; onClick: () => v
     <button onClick={onClick} className="rounded-md bg-panelSoft px-3 py-2 text-xs text-slate-200 hover:bg-slate-700">
       {label}
     </button>
+  );
+}
+
+function MobileNavItem({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 rounded-md py-1">
+      {icon}
+      <span>{label}</span>
+    </div>
   );
 }
