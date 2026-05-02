@@ -51,12 +51,23 @@ npm run dev
 
 ## Funcionalidad operativa actual
 
-- Login por magic link (correo)
+- Login por correo + contraseña (con opción de registro)
 - Checklist 21 días persistente por usuario
 - Estado de tareas, checkbox, fecha y notas guardados en `task_progress`
 - Registro rápido manual de ventas/gastos (`finance_entries`)
 - KPI mensual manual (`kpis`) con ticket promedio y margen estimado
 - Bitácora rápida (`notes`)
+- Plantillas administrativas editables y guardables
+- Próxima tarea recomendada automática
+- Exportación de resumen final en JSON
+- Navbar mobile funcional por secciones
+
+## Ajuste recomendado en Supabase Auth
+
+Para evitar dependencia de correo al crear cuentas, en Supabase revisa:
+
+- `Authentication -> Providers -> Email`
+- Si quieres flujo inmediato personal, desactiva `Confirm email` (solo si te conviene en uso privado).
 
 ## Deploy Netlify
 
