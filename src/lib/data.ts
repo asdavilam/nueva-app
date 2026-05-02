@@ -11,11 +11,11 @@ export const checklistTasks: ChecklistTask[] = [
     priority: "alta",
     estimateHours: 1,
     notes: "Formato diario iniciado.",
-    why: "Te permite ver flujo real y detectar caídas rápidas.",
-    how: "Registrar total por día al cierre.",
-    example: "Lunes: $8,500, Martes: $7,900.",
-    commonError: "No registrar días con baja venta.",
-    action: "Establecer corte diario obligatorio."
+    why: "Si no anotas ventas cada día, es fácil perder control del dinero sin darte cuenta.",
+    how: "Al cerrar, anota cuánto vendiste en total ese día (aunque haya sido poco).",
+    example: "Lunes: $8,500 | Martes: $7,900 | Miércoles: $6,200.",
+    commonError: "Solo registrar los días buenos y dejar en blanco los días flojos.",
+    action: "Haz el registro diario en el mismo horario todos los días."
   },
   {
     id: "w1-2",
@@ -27,11 +27,11 @@ export const checklistTasks: ChecklistTask[] = [
     priority: "alta",
     estimateHours: 1,
     notes: "Falta separar transferencias.",
-    why: "Evita fugas y mejora conciliación de caja.",
-    how: "Separar efectivo, tarjeta y transferencia.",
-    example: "Efectivo 45%, tarjeta 40%, transferencia 15%.",
-    commonError: "Mezclar métodos en una sola cifra.",
-    action: "Usar una línea por método."
+    why: "Te ayuda a detectar diferencias de caja y entender cómo te pagan más tus clientes.",
+    how: "Separa el total diario en tres partes: efectivo, tarjeta y transferencia.",
+    example: "Total del día: $10,000 -> Efectivo $4,500, Tarjeta $4,000, Transferencia $1,500.",
+    commonError: "Poner todo junto en una sola cifra y después no saber qué faltó.",
+    action: "Usa una línea por método y revisa al final del turno."
   },
   {
     id: "w1-3",
@@ -43,11 +43,11 @@ export const checklistTasks: ChecklistTask[] = [
     priority: "alta",
     estimateHours: 2,
     notes: "",
-    why: "Te da el piso mínimo que debes cubrir cada mes.",
-    how: "Listar renta, nómina, servicios y software.",
-    example: "Renta $18k, nómina $42k.",
-    commonError: "Olvidar servicios menores.",
-    action: "Crear recordatorio de revisión semanal."
+    why: "Así sabes cuánto debes vender mínimo para no perder dinero.",
+    how: "Haz una lista mensual de gastos que siempre pagas: renta, sueldos, luz, internet, etc.",
+    example: "Renta $18,000 + Nómina $42,000 + Servicios $6,500 = $66,500 fijos al mes.",
+    commonError: "Olvidar gastos pequeños que al final sí pesan.",
+    action: "Actualiza esta lista cada semana para no dejar nada fuera."
   },
   {
     id: "w2-1",
@@ -59,11 +59,11 @@ export const checklistTasks: ChecklistTask[] = [
     priority: "media",
     estimateHours: 2,
     notes: "",
-    why: "Define dónde concentrar promoción y esfuerzo.",
-    how: "Comparar ventas mensuales vs margen estimado.",
-    example: "Combo clásico vende alto y deja margen sólido.",
-    commonError: "Decidir por intuición sin datos.",
-    action: "Top 3 rentables en menú destacado."
+    why: "Te enfocas en vender más de lo que sí deja utilidad.",
+    how: "Compara qué productos se venden mucho y cuáles te dejan mejor margen.",
+    example: "La hamburguesa clásica se vende mucho y deja buen margen: conviene promoverla.",
+    commonError: "Elegir por gusto personal y no por números.",
+    action: "Define tus 3 productos más rentables y promuévelos primero."
   },
   {
     id: "w2-2",
@@ -75,11 +75,11 @@ export const checklistTasks: ChecklistTask[] = [
     priority: "alta",
     estimateHours: 1,
     notes: "",
-    why: "Impacta ingresos sin depender de más clientes.",
-    how: "Ventas totales del periodo / número de tickets.",
-    example: "$120,000 / 1,500 tickets = $80 ticket promedio.",
-    commonError: "Usar clientes en lugar de tickets.",
-    action: "Crear upsell simple en mostrador."
+    why: "Si subes el ticket promedio, ganas más sin necesitar más gente entrando.",
+    how: "Divide ventas totales entre número de tickets del periodo.",
+    example: "$120,000 / 1,500 tickets = $80 por ticket promedio.",
+    commonError: "Confundir clientes con tickets o mezclar periodos distintos.",
+    action: "Agrega una venta sugerida simple: papas + bebida en caja."
   },
   {
     id: "w3-1",
@@ -91,23 +91,23 @@ export const checklistTasks: ChecklistTask[] = [
     priority: "media",
     estimateHours: 1,
     notes: "",
-    why: "Conserva contexto operativo para decisiones.",
-    how: "Registrar eventos clave, incidencias y acciones.",
-    example: "Falla de plancha 30 min, se resolvió a las 3:20 pm.",
-    commonError: "Bitácora genérica sin seguimiento.",
-    action: "Cierre de turno con responsable."
+    why: "Te permite aprender de lo que pasa y evitar repetir errores.",
+    how: "Escribe cada día incidencias, decisiones tomadas y resultado.",
+    example: "Plancha falló 30 min; se llamó técnico; servicio normal a las 3:20 pm.",
+    commonError: "Anotar cosas vagas sin qué pasó ni qué se hizo.",
+    action: "Cierra turno con una nota corta y responsable asignado."
   }
 ];
 
 export const templates: Template[] = [
-  { id: "t1", name: "Corte de caja diario", purpose: "Control de ingresos y diferencias de caja." },
-  { id: "t2", name: "Registro ventas", purpose: "Seguimiento diario y semanal de ventas." },
-  { id: "t3", name: "Registro gastos", purpose: "Clasificación de gastos fijos y variables." },
-  { id: "t4", name: "Lista proveedores", purpose: "Control de contactos, precios y tiempos." },
-  { id: "t5", name: "Bitácora diaria", purpose: "Incidencias y aprendizajes operativos." },
-  { id: "t6", name: "Metas mensuales", purpose: "Definir foco de crecimiento por mes." },
-  { id: "t7", name: "Auditoría semanal", purpose: "Chequeo rápido de orden administrativo." },
-  { id: "t8", name: "Estado general del negocio", purpose: "Foto ejecutiva de salud del negocio." }
+  { id: "t1", name: "Corte de caja diario", purpose: "Control de ingresos y diferencias de caja.", sample: "Fecha:\nTurno:\nEfectivo inicial:\nVentas efectivo:\nVentas tarjeta:\nVentas transferencia:\nTotal esperado:\nTotal contado:\nDiferencia:\nResponsable:" },
+  { id: "t2", name: "Registro ventas", purpose: "Seguimiento diario y semanal de ventas.", sample: "Fecha:\nVentas totales:\n# Tickets:\nTicket promedio:\nProducto más vendido:\nObservaciones del día:" },
+  { id: "t3", name: "Registro gastos", purpose: "Clasificación de gastos fijos y variables.", sample: "Fecha:\nTipo de gasto (fijo/variable):\nConcepto:\nMonto:\nMétodo de pago:\n¿Era necesario? (sí/no)\nComentario:" },
+  { id: "t4", name: "Lista proveedores", purpose: "Control de contactos, precios y tiempos.", sample: "Proveedor:\nProducto:\nPrecio:\nTiempo de entrega:\nContacto:\nÚltima compra:\nCalificación (1-5):" },
+  { id: "t5", name: "Bitácora diaria", purpose: "Incidencias y aprendizajes operativos.", sample: "Fecha:\nQué pasó:\nImpacto:\nQué se hizo:\nResultado:\nAcción para evitar repetirlo:" },
+  { id: "t6", name: "Metas mensuales", purpose: "Definir foco de crecimiento por mes.", sample: "Mes:\nMeta de ventas:\nMeta de gastos:\nMeta de ticket promedio:\nMeta de servicio:\nAcciones clave de este mes:" },
+  { id: "t7", name: "Auditoría semanal", purpose: "Chequeo rápido de orden administrativo.", sample: "Semana:\n¿Se registraron ventas diarias? (sí/no)\n¿Se registraron gastos? (sí/no)\n¿Se hizo corte de caja? (sí/no)\n¿Hubo faltantes? (sí/no)\nPendientes críticos:" },
+  { id: "t8", name: "Estado general del negocio", purpose: "Foto ejecutiva de salud del negocio.", sample: "Periodo:\nVentas:\nGastos:\nUtilidad:\nTicket promedio:\nProducto estrella:\nPrincipal problema:\nPróxima acción prioritaria:" }
 ];
 
 export const phases: Phase[] = [
