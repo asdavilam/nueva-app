@@ -32,3 +32,28 @@ export type Phase = {
   estimate: string;
   status: "desbloqueado" | "bloqueado";
 };
+
+export type DbTask = {
+  id: string;
+  slug: string;
+  week: 1 | 2 | 3;
+  title: string;
+  description: string | null;
+  why: string;
+  how: string;
+  example: string;
+  common_error: string;
+  recommended_action: string;
+  priority: "baja" | "media" | "alta";
+  estimate_hours: number;
+};
+
+export type DbTaskProgress = {
+  id: string;
+  user_id: string;
+  task_id: string;
+  status: TaskStatus;
+  completed: boolean;
+  completed_at: string | null;
+  notes: string;
+};
