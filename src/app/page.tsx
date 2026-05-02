@@ -9,10 +9,13 @@ import { supabase } from "@/lib/supabase";
 import { ChecklistTask, TaskStatus } from "@/lib/types";
 
 type KPIForm = { periodMonth: string; sales: string; expenses: string; customers: string; tickets: string };
+type SectionKey = "dashboard" | "checklist" | "kpis" | "roadmap" | "templates" | "logros";
 
 export default function HomePage() {
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [tasks, setTasks] = useState<ChecklistTask[]>([]);
@@ -21,6 +24,8 @@ export default function HomePage() {
   const [financeMonth, setFinanceMonth] = useState({ sales: 0, expenses: 0 });
   const [note, setNote] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [section, setSection] = useState<SectionKey>("dashboard");
+  const [templateContent, setTemplateContent] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!supabase) return;
@@ -60,6 +65,15 @@ export default function HomePage() {
 
       const { data: kpis } = await supabase.from("kpis").select("sales, expenses, customers, tickets").eq("user_id", userId).order("period_month", { ascending: false }).limit(12);
       setKpiRows((kpis ?? []) as Array<{ sales: number; expenses: number; customers: number; tickets: number }>);
+
+      const { data: templateNotes } = await supabase
+        .from("notes")
+        .select("title, content")
+        .eq("user_id", userId)
+        .ilike("title", "template:%");
+
+      const mapped = Object.fromEntries((templateNotes ?? []).map((n) => [n.title.replace("template:", ""), n.content]));
+      setTemplateContent(mapped);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "No se pudo cargar la información.");
     } finally {
@@ -67,12 +81,15 @@ export default function HomePage() {
     }
   }
 
-  async function signInWithEmail() {
-    if (!supabase || !email) return;
+  async function signInWithEmailPassword() {
+    if (!supabase || !email || !password) return;
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+    const { error } =
+      authMode === "login"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
     setBusy(false);
-    setFeedback(error ? error.message : "Te envié un magic link al correo.");
+    setFeedback(error ? error.message : authMode === "login" ? "Sesión iniciada." : "Cuenta creada. Ya puedes entrar.");
   }
 
   async function signOut() {
@@ -139,6 +156,42 @@ export default function HomePage() {
     if (!error) setNote("");
   }
 
+  async function saveTemplate(templateId: string) {
+    if (!supabase || !session?.user?.id) return;
+    const title = `template:${templateId}`;
+    const content = templateContent[templateId] ?? "";
+    const { data: existing } = await supabase
+      .from("notes")
+      .select("id")
+      .eq("user_id", session.user.id)
+      .eq("title", title)
+      .maybeSingle();
+    if (existing?.id) {
+      await supabase.from("notes").update({ content }).eq("id", existing.id);
+    } else {
+      await supabase.from("notes").insert({ user_id: session.user.id, title, content });
+    }
+    setFeedback("Plantilla guardada.");
+  }
+
+  function exportSummary() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      progress,
+      tasks,
+      financeMonth,
+      latestKpi,
+      notesPreview: note
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "burger-business-blueprint-resumen.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const completed = tasks.filter((t) => t.completed).length;
   const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
   const utility = financeMonth.sales - financeMonth.expenses;
@@ -151,6 +204,12 @@ export default function HomePage() {
     () => ({ 1: tasks.filter((t) => t.week === 1), 2: tasks.filter((t) => t.week === 2), 3: tasks.filter((t) => t.week === 3) }),
     [tasks]
   );
+  const weekCompleted = {
+    1: grouped[1].length > 0 && grouped[1].every((t) => t.completed),
+    2: grouped[2].length > 0 && grouped[2].every((t) => t.completed),
+    3: grouped[3].length > 0 && grouped[3].every((t) => t.completed)
+  } as const;
+  const nextTask = tasks.find((t) => t.status !== "hecho");
 
   if (!supabase) {
     return <main className="p-6 text-red-300">Falta configurar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.</main>;
@@ -169,15 +228,26 @@ export default function HomePage() {
       <main className="mx-auto flex min-h-screen w-full max-w-lg items-center p-4">
         <div className="w-full rounded-lg border border-slate-800 bg-panel p-6">
           <h1 className="text-xl font-semibold">Burger Business Blueprint</h1>
-          <p className="mt-2 text-sm text-muted">Inicia sesión con magic link para empezar a operar tu tablero administrativo.</p>
+          <p className="mt-2 text-sm text-muted">Accede con correo y contraseña para usar tu tablero.</p>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tu-correo@empresa.com"
             className="mt-4 w-full rounded-md border border-slate-700 bg-panelSoft px-3 py-2 outline-none"
           />
-          <button onClick={signInWithEmail} disabled={busy} className="mt-3 w-full rounded-md bg-accent px-3 py-2 font-medium text-white disabled:opacity-50">
-            {busy ? "Enviando..." : "Enviar magic link"}
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            placeholder="Contraseña"
+            className="mt-2 w-full rounded-md border border-slate-700 bg-panelSoft px-3 py-2 outline-none"
+          />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button onClick={() => setAuthMode("login")} className={`rounded-md px-3 py-2 text-sm ${authMode === "login" ? "bg-accent text-white" : "bg-panelSoft"}`}>Entrar</button>
+            <button onClick={() => setAuthMode("signup")} className={`rounded-md px-3 py-2 text-sm ${authMode === "signup" ? "bg-accent text-white" : "bg-panelSoft"}`}>Crear cuenta</button>
+          </div>
+          <button onClick={signInWithEmailPassword} disabled={busy} className="mt-3 w-full rounded-md bg-accent px-3 py-2 font-medium text-white disabled:opacity-50">
+            {busy ? "Procesando..." : authMode === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </button>
           {feedback ? <p className="mt-3 text-sm text-emerald-300">{feedback}</p> : null}
         </div>
@@ -201,17 +271,17 @@ export default function HomePage() {
           </button>
           <nav className="mt-6 space-y-1 text-sm">
             {[
-              ["Dashboard", <LayoutDashboard size={16} key="d" />],
-              ["Sistema Base 21 Días", <ClipboardList size={16} key="c" />],
-              ["KPIs", <BarChart3 size={16} key="k" />],
-              ["Plantillas", <CheckCircle2 size={16} key="p" />],
-              ["Roadmap", <Target size={16} key="r" />],
-              ["Logros", <Flame size={16} key="l" />]
-            ].map(([label, icon]) => (
-              <div key={label as string} className="flex items-center gap-2 rounded-md px-2 py-2 text-slate-300">
+              ["dashboard", "Dashboard", <LayoutDashboard size={16} key="d" />],
+              ["checklist", "Sistema Base 21 Días", <ClipboardList size={16} key="c" />],
+              ["kpis", "KPIs", <BarChart3 size={16} key="k" />],
+              ["templates", "Plantillas", <CheckCircle2 size={16} key="p" />],
+              ["roadmap", "Roadmap", <Target size={16} key="r" />],
+              ["logros", "Logros", <Flame size={16} key="l" />]
+            ].map(([key, label, icon]) => (
+              <button key={label as string} onClick={() => setSection(key as SectionKey)} className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left ${section === key ? "bg-panelSoft text-white" : "text-slate-300"}`}>
                 {icon}
                 <span>{label}</span>
-              </div>
+              </button>
             ))}
           </nav>
         </aside>
@@ -232,19 +302,22 @@ export default function HomePage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <QuickAmountButton label="+ Venta $500" onClick={() => addFinance("venta", 500)} />
               <QuickAmountButton label="+ Gasto $300" onClick={() => addFinance("gasto", 300)} />
+              <QuickAmountButton label="Exportar resumen" onClick={exportSummary} />
             </div>
+            <p className="mt-2 text-xs text-slate-300">Próxima tarea recomendada: {nextTask?.title ?? "Sistema base completado"}</p>
             {feedback ? <p className="mt-3 text-xs text-emerald-300">{feedback}</p> : null}
           </div>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <div className="space-y-6 xl:col-span-2">
+              {(section === "checklist" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">Sistema Base del Negocio (21 días)</h3>
                 {busy ? <p className="mt-2 text-xs text-muted">Sincronizando...</p> : null}
                 <div className="mt-5 space-y-5">
                   {[1, 2, 3].map((week) => (
                     <div key={week} className="rounded-md border border-slate-700 bg-panelSoft p-4">
-                      <h4 className="font-medium">Semana {week}</h4>
+                      <h4 className="font-medium">Semana {week} {weekCompleted[week as 1 | 2 | 3] ? "✅" : ""}</h4>
                       <div className="mt-3 space-y-3">
                         {grouped[week as 1 | 2 | 3].map((task) => (
                           <TaskCard key={task.id} task={task} onChange={updateTask} />
@@ -254,7 +327,9 @@ export default function HomePage() {
                   ))}
                 </div>
               </section>
+              )}
 
+              {(section === "roadmap" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">Roadmap futuro (7 fases)</h3>
                 <div className="mt-4 space-y-3">
@@ -274,9 +349,11 @@ export default function HomePage() {
                   ))}
                 </div>
               </section>
+              )}
             </div>
 
             <div className="space-y-6">
+              {(section === "kpis" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">KPIs (captura manual)</h3>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -293,7 +370,9 @@ export default function HomePage() {
                   <KpiRow label="Tendencia mensual" value={kpiRows.length > 1 ? `${Math.round(((kpiRows[0].sales - kpiRows[1].sales) / Math.max(kpiRows[1].sales, 1)) * 100)}%` : "N/A"} />
                 </div>
               </section>
+              )}
 
+              {(section === "templates" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">Plantillas administrativas</h3>
                 <div className="mt-3 space-y-2 text-sm">
@@ -301,16 +380,27 @@ export default function HomePage() {
                     <div key={t.id} className="rounded-md border border-slate-700 p-2">
                       <p className="font-medium">{t.name}</p>
                       <p className="text-xs text-muted">{t.purpose}</p>
+                      <textarea
+                        value={templateContent[t.id] ?? ""}
+                        onChange={(e) => setTemplateContent((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                        rows={3}
+                        className="mt-2 w-full rounded-md border border-slate-700 bg-slate-900 p-2 text-xs"
+                        placeholder="Escribe aquí tu formato personal..."
+                      />
+                      <button onClick={() => void saveTemplate(t.id)} className="mt-2 rounded-md bg-panelSoft px-3 py-1 text-xs">Guardar plantilla</button>
                     </div>
                   ))}
                 </div>
               </section>
+              )}
 
+              {(section === "logros" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">Bitácora rápida</h3>
                 <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} className="mt-3 w-full rounded-md border border-slate-700 bg-panelSoft p-2 text-sm" placeholder="Registrar incidencia, aprendizaje o acción tomada..." />
                 <button onClick={saveNote} className="mt-2 w-full rounded-md bg-panelSoft px-3 py-2 text-sm">Guardar nota</button>
               </section>
+              )}
             </div>
           </div>
         </section>
@@ -318,11 +408,11 @@ export default function HomePage() {
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-panel/95 backdrop-blur md:hidden">
         <div className="grid grid-cols-5 gap-1 px-2 py-2 text-[11px] text-slate-300">
-          <MobileNavItem icon={<LayoutDashboard size={14} />} label="Inicio" />
-          <MobileNavItem icon={<ClipboardList size={14} />} label="Checklist" />
-          <MobileNavItem icon={<BarChart3 size={14} />} label="KPIs" />
-          <MobileNavItem icon={<Target size={14} />} label="Roadmap" />
-          <MobileNavItem icon={<Flame size={14} />} label="Logros" />
+          <MobileNavItem icon={<LayoutDashboard size={14} />} label="Inicio" active={section === "dashboard"} onClick={() => setSection("dashboard")} />
+          <MobileNavItem icon={<ClipboardList size={14} />} label="Checklist" active={section === "checklist"} onClick={() => setSection("checklist")} />
+          <MobileNavItem icon={<BarChart3 size={14} />} label="KPIs" active={section === "kpis"} onClick={() => setSection("kpis")} />
+          <MobileNavItem icon={<Target size={14} />} label="Roadmap" active={section === "roadmap"} onClick={() => setSection("roadmap")} />
+          <MobileNavItem icon={<Flame size={14} />} label="Logros" active={section === "logros"} onClick={() => setSection("logros")} />
         </div>
       </nav>
     </main>
@@ -403,11 +493,11 @@ function QuickAmountButton({ label, onClick }: { label: string; onClick: () => v
   );
 }
 
-function MobileNavItem({ icon, label }: { icon: React.ReactNode; label: string }) {
+function MobileNavItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-1 rounded-md py-1">
+    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 rounded-md py-1 ${active ? "bg-panelSoft text-white" : ""}`}>
       {icon}
       <span>{label}</span>
-    </div>
+    </button>
   );
 }
