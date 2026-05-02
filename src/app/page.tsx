@@ -309,6 +309,24 @@ export default function HomePage() {
             {feedback ? <p className="mt-3 text-xs text-emerald-300">{feedback}</p> : null}
           </div>
 
+          <div className="rounded-lg border border-slate-800 bg-panel p-5">
+            <h3 className="text-lg font-semibold">Qué llenar y cuándo</h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-3 text-sm">
+              <div className="rounded-md border border-slate-700 bg-panelSoft p-3">
+                <p className="font-medium">Diario</p>
+                <p className="mt-1 text-slate-300">Ventas, gastos, tareas del checklist y bitácora.</p>
+              </div>
+              <div className="rounded-md border border-slate-700 bg-panelSoft p-3">
+                <p className="font-medium">Semanal</p>
+                <p className="mt-1 text-slate-300">Inventario, auditoría rápida y revisión de fugas/mermas.</p>
+              </div>
+              <div className="rounded-md border border-slate-700 bg-panelSoft p-3">
+                <p className="font-medium">Mensual</p>
+                <p className="mt-1 text-slate-300">KPI/KDI, utilidad real, metas del siguiente mes.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <div className="space-y-6 xl:col-span-2">
               {(section === "checklist" || section === "dashboard") && (
@@ -333,6 +351,9 @@ export default function HomePage() {
               {(section === "roadmap" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">Roadmap futuro (7 fases)</h3>
+                <div className="mt-3 rounded-md border border-slate-700 bg-panelSoft p-3 text-xs text-slate-300">
+                  Ruta real: negocio familiar → negocio profesional → negocio escalable → multisucursal → franquicia.
+                </div>
                 <div className="mt-4 space-y-3">
                   {phases.map((phase) => (
                     <div key={phase.id} className="rounded-md border border-slate-700 p-3">
@@ -346,8 +367,13 @@ export default function HomePage() {
                         </span>
                       </div>
                       <p className="mt-2 text-xs text-muted">Requisitos: {phase.prerequisites.join(", ")} | Tiempo: {phase.estimate}</p>
+                      <p className="mt-2 text-xs text-slate-300">Tareas clave: {phase.tasks.slice(0, 4).join(" · ")}{phase.tasks.length > 4 ? " · ..." : ""}</p>
                     </div>
                   ))}
+                </div>
+                <div className="mt-4 rounded-md border border-amber-700/50 bg-amber-500/10 p-3 text-xs text-amber-200">
+                  <p className="font-semibold">Antes de franquiciar, deben existir estas 10 bases:</p>
+                  <p className="mt-1">Rentabilidad real · Marca fuerte · Procesos repetibles · Calidad constante · Buena administración · Producto amado por clientes · Números claros · Segunda sucursal exitosa · Equipo confiable · Liderazgo fuerte.</p>
                 </div>
               </section>
               )}
@@ -360,6 +386,7 @@ export default function HomePage() {
                 <div className="mt-3 rounded-md border border-slate-700 bg-panelSoft p-3 text-xs text-slate-300">
                   <p><span className="font-semibold text-slate-100">KDI/KPI:</span> son indicadores clave para medir cómo va tu negocio.</p>
                   <p className="mt-1">Te sirven para decidir con datos, no con intuición. Ejemplo: ventas, gastos, ticket promedio y margen.</p>
+                  <p className="mt-1">En esta app se capturan normalmente por mes (resumen ejecutivo), mientras los movimientos diarios van en ventas y gastos.</p>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                   <input value={kpiForm.periodMonth} onChange={(e) => setKpiForm((p) => ({ ...p, periodMonth: e.target.value }))} type="month" className="col-span-2 rounded-md border border-slate-700 bg-panelSoft px-2 py-2" />
@@ -402,6 +429,9 @@ export default function HomePage() {
               {(section === "logros" || section === "dashboard") && (
               <section className="rounded-lg border border-slate-800 bg-panel p-5">
                 <h3 className="text-lg font-semibold">Bitácora rápida</h3>
+                <div className="mt-2 rounded-md border border-slate-700 bg-panelSoft p-2 text-xs text-slate-300">
+                  Gastos a registrar aquí: compras de insumo, nómina, servicios, mantenimiento, delivery, empaques, limpieza y gastos imprevistos del negocio.
+                </div>
                 <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} className="mt-3 w-full rounded-md border border-slate-700 bg-panelSoft p-2 text-sm" placeholder="Registrar incidencia, aprendizaje o acción tomada..." />
                 <button onClick={saveNote} className="mt-2 w-full rounded-md bg-panelSoft px-3 py-2 text-sm">Guardar nota</button>
               </section>
