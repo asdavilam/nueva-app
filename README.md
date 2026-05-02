@@ -58,13 +58,16 @@ npm run dev
 - KPI mensual manual (`kpis`) con ticket promedio y margen estimado
 - Bitácora rápida (`notes`)
 
-## Deploy Vercel
+## Deploy Netlify
 
-1. Conecta repositorio en Vercel.
-2. Configura variables de entorno:
+1. Conecta repositorio en Netlify.
+2. Build command: `npm run build`
+3. Variables de entorno:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-3. Deploy.
+4. Deploy.
+
+> Nota: este proyecto ya incluye `netlify.toml` con `@netlify/plugin-nextjs`.
 
 ## Nota de alcance
 
