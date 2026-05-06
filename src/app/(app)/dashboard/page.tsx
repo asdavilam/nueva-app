@@ -15,7 +15,7 @@ import { ChecklistTask } from "@/lib/types";
 type FinanceMonth = { sales: number; expenses: number };
 type LatestKpi = { sales: number; expenses: number; tickets: number } | null;
 
-const PAY_METHODS = ["efectivo", "tarjeta", "transferencia"];
+const PAY_METHODS = ["efectivo", "tarjeta", "transferencia"] as const;
 
 function getWeekBounds(offsetWeeks = 0) {
   const now = new Date();
@@ -45,7 +45,7 @@ export default function DashboardPage() {
   // Quick sale form
   const [showQuick, setShowQuick] = useState(false);
   const [qAmount, setQAmount] = useState("");
-  const [qMethod, setQMethod] = useState("efectivo");
+  const [qMethod, setQMethod] = useState<typeof PAY_METHODS[number]>("efectivo");
   const [qBusy, setQBusy] = useState(false);
   const [qFeedback, setQFeedback] = useState("");
 
@@ -179,30 +179,36 @@ export default function DashboardPage() {
               <X size={18} />
             </button>
           </div>
-          <div className="flex gap-3">
+          <div className="space-y-3">
             <input
               value={qAmount}
               onChange={(e) => setQAmount(e.target.value)}
               type="number"
               placeholder="Monto total $"
-              className="flex-1 rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none focus:border-accent"
               autoFocus
             />
-            <select
-              value={qMethod}
-              onChange={(e) => setQMethod(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none"
-            >
+            <div className="grid grid-cols-3 gap-2">
               {PAY_METHODS.map((m) => (
-                <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
+                <button
+                  key={m}
+                  onClick={() => setQMethod(m)}
+                  className={`rounded-lg py-2 text-sm font-medium capitalize transition-colors ${
+                    qMethod === m
+                      ? "bg-accent/20 text-accent ring-1 ring-accent/40"
+                      : "bg-panelSoft text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {m}
+                </button>
               ))}
-            </select>
+            </div>
             <button
               onClick={() => void saveQuickSale()}
               disabled={qBusy || !qAmount}
-              className="rounded-lg bg-accent px-4 py-2 font-semibold text-white disabled:opacity-50"
+              className="w-full rounded-lg bg-accent py-2.5 font-semibold text-white disabled:opacity-50"
             >
-              {qBusy ? <Loader2 className="animate-spin" size={16} /> : "Guardar"}
+              {qBusy ? <Loader2 className="mx-auto animate-spin" size={16} /> : "Guardar venta"}
             </button>
           </div>
           <p className="mt-2 text-xs text-muted">

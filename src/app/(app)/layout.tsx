@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 const NAV: { href: Route<string>; label: string; icon: React.ElementType }[] = [
   { href: "/dashboard",   label: "Dashboard",        icon: LayoutDashboard },
   { href: "/checklist",   label: "Sistema 21 días",  icon: ClipboardList },
-  { href: "/ventas",      label: "Ventas y Gastos",  icon: DollarSign },
+  { href: "/ventas",      label: "Gastos",            icon: DollarSign },
   { href: "/productos",   label: "Mis Productos",    icon: ShoppingBag },
   { href: "/kpis",        label: "KPIs",             icon: BarChart3 },
   { href: "/roadmap",     label: "Roadmap",          icon: Target },
