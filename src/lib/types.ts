@@ -49,6 +49,34 @@ export type DbTask = {
   estimate_hours: number;
 };
 
+export type Product = {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string;
+  base_price: number;
+  active: boolean;
+  created_at: string;
+};
+
+export type ProductVariant = {
+  id: string;
+  product_id: string;
+  name: string;
+  price_adjustment: number;
+};
+
+export type SaleItem = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  variant_id: string | null;
+  quantity: number;
+  unit_price: number;
+  sale_date: string;
+  created_at: string;
+};
+
 export type DbTaskProgress = {
   id: string;
   user_id: string;
