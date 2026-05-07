@@ -71,6 +71,7 @@ export type SaleItem = {
   user_id: string;
   product_id: string;
   variant_id: string | null;
+  finance_entry_id: string | null;
   quantity: number;
   unit_price: number;
   sale_date: string;

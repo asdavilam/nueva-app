@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Plus, ShoppingBag, Loader2, Trash2, ChevronDown,
-  Star, BarChart3, Package, Minus, CheckCircle2,
+  Star, BarChart3, Package, Minus, CheckCircle2, Receipt, Pencil, X, Check,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -11,15 +11,22 @@ import type { Product, ProductVariant, SaleItem } from "@/lib/types";
 
 type ProductWithVariants = Product & { variants: ProductVariant[] };
 type ProductReport = { product_id: string; name: string; category: string; qty: number };
+type LineItem = { lid: string; productId: string; variantId: string | null; qty: number };
+type VentaEntry = { id: string; amount: number; entry_date: string; payment_method: string | null; notes: string };
 
 const PRODUCT_CATS = ["burger", "acompañamiento", "bebida", "postre", "combo", "otro"];
 const PAY_METHODS = ["efectivo", "tarjeta", "transferencia"] as const;
+const CARD_COMMISSION = 0.0406;
+
+let lidCounter = 0;
+function newLid() { return `lid-${++lidCounter}`; }
 
 export default function ProductosPage() {
   const { session } = useAuth();
   const [tab, setTab] = useState<"catalogo" | "venta" | "analisis">("catalogo");
   const [products, setProducts] = useState<ProductWithVariants[]>([]);
   const [sales, setSales] = useState<SaleItem[]>([]);
+  const [ventas, setVentas] = useState<VentaEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -32,8 +39,13 @@ export default function ProductosPage() {
   const [vName, setVName] = useState("");
 
   // ── Ticket ──
-  const [selected, setSelected] = useState<Record<string, number>>({});          // productId → qty
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({}); // productId → variantId
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  // ── Edit ticket ──
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editPayMethod, setEditPayMethod] = useState<typeof PAY_METHODS[number]>("efectivo");
   const [ticketTotal, setTicketTotal] = useState("");
   const [payMethod, setPayMethod] = useState<typeof PAY_METHODS[number]>("efectivo");
   const [saleDate, setSaleDate] = useState(new Date().toISOString().slice(0, 10));
@@ -56,12 +68,22 @@ export default function ProductosPage() {
 
     const monthStart = new Date();
     monthStart.setDate(1);
+
     const { data: salesData } = await supabase
       .from("sale_items")
-      .select("id, user_id, product_id, variant_id, quantity, unit_price, sale_date, created_at")
+      .select("id, user_id, product_id, variant_id, finance_entry_id, quantity, unit_price, sale_date, created_at")
       .eq("user_id", userId)
       .gte("sale_date", monthStart.toISOString().slice(0, 10))
       .order("sale_date", { ascending: false });
+
+    const { data: ventasData } = await supabase
+      .from("finance_entries")
+      .select("id, amount, entry_date, payment_method, notes")
+      .eq("user_id", userId)
+      .eq("entry_type", "venta")
+      .gte("entry_date", monthStart.toISOString().slice(0, 10))
+      .order("entry_date", { ascending: false })
+      .order("created_at", { ascending: false });
 
     setProducts(
       (prods ?? []).map((p) => ({
@@ -70,6 +92,7 @@ export default function ProductosPage() {
       }))
     );
     setSales((salesData ?? []) as SaleItem[]);
+    setVentas((ventasData ?? []) as VentaEntry[]);
     setLoading(false);
   }
 
@@ -120,83 +143,135 @@ export default function ProductosPage() {
     );
   }
 
-  // ── Ticket selection ──
-  function toggleProduct(productId: string) {
-    setSelected((prev) => {
-      if (prev[productId]) {
-        const next = { ...prev };
-        delete next[productId];
-        // clear variant too
-        setSelectedVariants((sv) => { const s = { ...sv }; delete s[productId]; return s; });
-        return next;
+  // ── Line items ──
+  function addToLineItems(productId: string) {
+    setLineItems((prev) => {
+      // Increment existing same-product item with no variant picked
+      const existing = prev.findIndex((li) => li.productId === productId && li.variantId === null);
+      if (existing >= 0) {
+        return prev.map((li, i) => i === existing ? { ...li, qty: li.qty + 1 } : li);
       }
-      return { ...prev, [productId]: 1 };
+      return [...prev, { lid: newLid(), productId, variantId: null, qty: 1 }];
     });
   }
 
-  function changeQty(productId: string, delta: number) {
-    setSelected((prev) => {
-      const next = (prev[productId] ?? 0) + delta;
-      if (next <= 0) {
-        const copy = { ...prev };
-        delete copy[productId];
-        setSelectedVariants((sv) => { const s = { ...sv }; delete s[productId]; return s; });
-        return copy;
-      }
-      return { ...prev, [productId]: next };
-    });
-  }
-
-  function pickVariant(productId: string, variantId: string) {
-    setSelectedVariants((prev) =>
-      prev[productId] === variantId
-        ? (() => { const s = { ...prev }; delete s[productId]; return s; })()
-        : { ...prev, [productId]: variantId }
+  function setLineItemVariant(lid: string, variantId: string) {
+    setLineItems((prev) =>
+      prev.map((li) =>
+        li.lid === lid
+          ? { ...li, variantId: li.variantId === variantId ? null : variantId }
+          : li
+      )
     );
   }
 
+  function changeLineItemQty(lid: string, delta: number) {
+    setLineItems((prev) => {
+      const next = prev.map((li) => li.lid === lid ? { ...li, qty: li.qty + delta } : li);
+      return next.filter((li) => li.qty > 0);
+    });
+  }
+
+  function removeLineItem(lid: string) {
+    setLineItems((prev) => prev.filter((li) => li.lid !== lid));
+  }
+
+  // Commission calc
+  const grossAmount = Number(ticketTotal) || 0;
+  const commissionAmt = payMethod === "tarjeta" ? +(grossAmount * CARD_COMMISSION).toFixed(2) : 0;
+  const netAmount = +(grossAmount - commissionAmt).toFixed(2);
+
   async function registerTicket() {
     if (!supabase || !session?.user.id) return;
-    const entries = Object.entries(selected);
-    if (entries.length === 0 || !ticketTotal) return;
+    if (lineItems.length === 0 || !ticketTotal) return;
 
     setBusy(true);
 
-    const { error: finError } = await supabase.from("finance_entries").insert({
-      user_id: session.user.id,
-      entry_type: "venta",
-      category: "venta_producto",
-      amount: Number(ticketTotal),
-      entry_date: saleDate,
-      payment_method: payMethod,
-      notes: entries.map(([id, qty]) => {
-        const p = products.find((p) => p.id === id);
-        const v = selectedVariants[id]
-          ? p?.variants.find((v) => v.id === selectedVariants[id])
-          : null;
-        return `${p?.name ?? id}${v ? ` (${v.name})` : ""} x${qty}`;
-      }).join(", "),
-    });
+    const noteText = lineItems.map((li) => {
+      const p = products.find((p) => p.id === li.productId);
+      const v = li.variantId ? p?.variants.find((v) => v.id === li.variantId) : null;
+      return `${p?.name ?? li.productId}${v ? ` (${v.name})` : ""} x${li.qty}`;
+    }).join(", ");
+
+    const storedAmount = payMethod === "tarjeta" ? netAmount : grossAmount;
+
+    const { data: finData, error: finError } = await supabase
+      .from("finance_entries")
+      .insert({
+        user_id: session.user.id,
+        entry_type: "venta",
+        category: "venta_producto",
+        amount: storedAmount,
+        entry_date: saleDate,
+        payment_method: payMethod,
+        notes: payMethod === "tarjeta"
+          ? `${noteText} [comisión −$${commissionAmt.toLocaleString("es-MX")}]`
+          : noteText,
+      })
+      .select("id")
+      .single();
 
     if (finError) { setBusy(false); showFeedback(finError.message); return; }
 
-    const saleRows = entries.map(([productId, qty]) => ({
+    const financeEntryId = (finData as { id: string } | null)?.id;
+
+    const saleRows = lineItems.map((li) => ({
       user_id: session.user.id!,
-      product_id: productId,
-      variant_id: selectedVariants[productId] ?? null,
-      quantity: qty,
+      product_id: li.productId,
+      variant_id: li.variantId,
+      quantity: li.qty,
       unit_price: 0,
       sale_date: saleDate,
+      ...(financeEntryId ? { finance_entry_id: financeEntryId } : {}),
     }));
 
     const { error: saleError } = await supabase.from("sale_items").insert(saleRows);
     setBusy(false);
     if (saleError) { showFeedback(saleError.message); return; }
 
-    const totalUnits = entries.reduce((a, [, qty]) => a + qty, 0);
-    showFeedback(`Ticket $${Number(ticketTotal).toLocaleString("es-MX")} registrado (${totalUnits} productos)`);
-    setSelected({}); setSelectedVariants({}); setTicketTotal("");
+    const totalUnits = lineItems.reduce((a, li) => a + li.qty, 0);
+    showFeedback(`Ticket $${storedAmount.toLocaleString("es-MX")} registrado (${totalUnits} unidades)`);
+    setLineItems([]); setTicketTotal("");
     await load(session.user.id);
+  }
+
+  async function deleteTicket(ventaId: string) {
+    if (!supabase || !session?.user.id) return;
+    await supabase.from("sale_items").delete().eq("finance_entry_id", ventaId).eq("user_id", session.user.id);
+    await supabase.from("finance_entries").delete().eq("id", ventaId).eq("user_id", session.user.id);
+    setVentas((prev) => prev.filter((v) => v.id !== ventaId));
+    showFeedback("Ticket eliminado");
+  }
+
+  function startEdit(v: VentaEntry) {
+    setEditingId(v.id);
+    setEditAmount(String(v.amount));
+    setEditDate(v.entry_date);
+    setEditPayMethod((v.payment_method as typeof PAY_METHODS[number]) ?? "efectivo");
+  }
+
+  async function updateTicket() {
+    if (!supabase || !session?.user.id || !editingId || !editAmount) return;
+    setBusy(true);
+    const gross = Number(editAmount);
+    const commission = editPayMethod === "tarjeta" ? +(gross * CARD_COMMISSION).toFixed(2) : 0;
+    const net = +(gross - commission).toFixed(2);
+    const storedAmount = editPayMethod === "tarjeta" ? net : gross;
+
+    const { error } = await supabase
+      .from("finance_entries")
+      .update({ amount: storedAmount, entry_date: editDate, payment_method: editPayMethod })
+      .eq("id", editingId)
+      .eq("user_id", session.user.id);
+
+    setBusy(false);
+    if (error) { showFeedback(error.message); return; }
+
+    setVentas((prev) => prev.map((v) =>
+      v.id === editingId ? { ...v, amount: storedAmount, entry_date: editDate, payment_method: editPayMethod } : v
+    ));
+    setEditingId(null);
+    showFeedback("Ticket actualizado");
   }
 
   // ── Analytics ──
@@ -213,7 +288,7 @@ export default function ProductosPage() {
   const maxQty = reports[0]?.qty ?? 1;
   const totalQty = reports.reduce((a, c) => a + c.qty, 0);
   const daysWithSales = new Set(sales.map((s) => s.sale_date)).size;
-  const selectedCount = Object.keys(selected).length;
+  const lineItemCount = lineItems.reduce((a, li) => a + li.qty, 0);
 
   if (loading) return (
     <div className="flex h-64 items-center justify-center">
@@ -248,9 +323,9 @@ export default function ProductosPage() {
             }`}
           >
             {t === "catalogo" ? "Catálogo" : t === "venta" ? "Registrar Ticket" : "Análisis"}
-            {t === "venta" && selectedCount > 0 && (
+            {t === "venta" && lineItemCount > 0 && (
               <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-white">
-                {selectedCount}
+                {lineItemCount}
               </span>
             )}
           </button>
@@ -258,7 +333,7 @@ export default function ProductosPage() {
       </div>
 
       {feedback && (
-        <div className="rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-emerald-300">
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
           {feedback}
         </div>
       )}
@@ -433,93 +508,94 @@ export default function ProductosPage() {
             <>
               {/* Step 1 — Product grid */}
               <div>
-                <p className="mb-3 text-sm font-medium text-slate-300">1. Selecciona los productos del ticket</p>
+                <p className="mb-3 text-sm font-medium text-slate-300">
+                  1. Agrega productos al ticket <span className="text-xs text-muted">(toca para añadir)</span>
+                </p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {products.map((product) => {
-                    const qty = selected[product.id] ?? 0;
-                    const isSelected = qty > 0;
-                    const pickedVariant = selectedVariants[product.id];
-
+                    const inCart = lineItems.some((li) => li.productId === product.id);
                     return (
-                      <div
+                      <button
                         key={product.id}
-                        className={`relative overflow-hidden rounded-xl border transition-all ${
-                          isSelected ? "border-accent/50 bg-accent/10" : "border-slate-800 bg-panel hover:border-slate-700"
+                        onClick={() => addToLineItems(product.id)}
+                        className={`relative overflow-hidden rounded-xl border p-3 text-left transition-all active:scale-95 ${
+                          inCart ? "border-accent/50 bg-accent/10" : "border-slate-800 bg-panel hover:border-slate-700"
                         }`}
                       >
-                        {isSelected && (
+                        {inCart && (
                           <CheckCircle2 size={14} className="absolute right-2 top-2 text-accent" />
                         )}
-
-                        {/* Tap to toggle select */}
-                        <button
-                          onClick={() => toggleProduct(product.id)}
-                          className="w-full p-3 text-left"
-                        >
-                          <p className={`text-sm font-medium leading-tight ${isSelected ? "text-white" : "text-slate-300"}`}>
-                            {product.name}
-                          </p>
-                          <p className="mt-0.5 text-xs capitalize text-muted">{product.category}</p>
-                        </button>
-
-                        {/* Variant chips */}
-                        {isSelected && product.variants.length > 0 && (
-                          <div className="flex flex-wrap gap-1 px-3 pb-2">
-                            {product.variants.map((v) => (
-                              <button
-                                key={v.id}
-                                onClick={() => pickVariant(product.id, v.id)}
-                                className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
-                                  pickedVariant === v.id
-                                    ? "bg-accent text-white"
-                                    : "bg-panelSoft text-slate-400 hover:text-white"
-                                }`}
-                              >
-                                {v.name}
-                              </button>
-                            ))}
-                          </div>
+                        <p className={`text-sm font-medium leading-tight ${inCart ? "text-white" : "text-slate-300"}`}>
+                          {product.name}
+                        </p>
+                        <p className="mt-0.5 text-xs capitalize text-muted">{product.category}</p>
+                        {product.variants.length > 0 && (
+                          <p className="mt-1 text-xs text-slate-500">{product.variants.length} variante{product.variants.length !== 1 ? "s" : ""}</p>
                         )}
-
-                        {/* Qty stepper */}
-                        {isSelected && (
-                          <div className="mx-3 mb-3 flex items-center justify-between rounded-lg bg-panel px-2 py-1.5">
-                            <button onClick={() => changeQty(product.id, -1)} className="text-slate-400 hover:text-white">
-                              <Minus size={14} />
-                            </button>
-                            <span className="text-sm font-bold text-accent">{qty}</span>
-                            <button onClick={() => changeQty(product.id, 1)} className="text-slate-400 hover:text-white">
-                              <Plus size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               </div>
 
+              {/* Cart — line items */}
+              {lineItems.length > 0 && (
+                <div className="overflow-hidden rounded-xl border border-slate-700 bg-panel">
+                  <p className="border-b border-slate-800 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-muted">
+                    Productos en este ticket
+                  </p>
+                  <div className="divide-y divide-slate-800">
+                    {lineItems.map((li) => {
+                      const product = products.find((p) => p.id === li.productId);
+                      return (
+                        <div key={li.lid} className="px-4 py-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{product?.name}</p>
+                              {product && product.variants.length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {product.variants.map((v) => (
+                                    <button
+                                      key={v.id}
+                                      onClick={() => setLineItemVariant(li.lid, v.id)}
+                                      className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
+                                        li.variantId === v.id
+                                          ? "bg-accent text-white"
+                                          : "bg-panelSoft text-slate-400 hover:text-white"
+                                      }`}
+                                    >
+                                      {v.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 rounded-lg bg-panelSoft px-1.5 py-1">
+                                <button onClick={() => changeLineItemQty(li.lid, -1)} className="text-slate-400 hover:text-white">
+                                  <Minus size={12} />
+                                </button>
+                                <span className="w-5 text-center text-sm font-bold text-accent">{li.qty}</span>
+                                <button onClick={() => changeLineItemQty(li.lid, 1)} className="text-slate-400 hover:text-white">
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                              <button onClick={() => removeLineItem(li.lid)} className="text-slate-600 hover:text-red-400">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Step 2 — Ticket data */}
               <div className="rounded-xl border border-slate-800 bg-panel p-5">
                 <p className="mb-4 text-sm font-medium text-slate-300">2. Datos del ticket</p>
                 <div className="space-y-4">
-                  {/* Selected summary */}
-                  {selectedCount > 0 && (
-                    <div className="rounded-lg bg-panelSoft px-3 py-2 text-xs text-muted">
-                      {Object.entries(selected).map(([id, qty]) => {
-                        const p = products.find((p) => p.id === id);
-                        const v = selectedVariants[id]
-                          ? p?.variants.find((v) => v.id === selectedVariants[id])
-                          : null;
-                        return (
-                          <span key={id} className="mr-2 text-slate-300">
-                            {p?.name}{v ? ` (${v.name})` : ""} ×{qty}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-
                   <div>
                     <label className="mb-1 block text-xs text-muted">Total del ticket *</label>
                     <input
@@ -529,9 +605,22 @@ export default function ProductosPage() {
                       placeholder="$0.00 — lo que cobró el ticket"
                       className="w-full rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none focus:border-accent"
                     />
+                    {payMethod === "tarjeta" && grossAmount > 0 && (
+                      <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs">
+                        <div className="flex justify-between text-amber-300">
+                          <span>Comisión terminal (4.06%)</span>
+                          <span>−${commissionAmt.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="mt-0.5 flex justify-between font-semibold text-emerald-300">
+                          <span>Neto a recibir</span>
+                          <span>${netAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <p className="mt-1 text-slate-400">Se guarda el neto en tus finanzas.</p>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Payment method — button grid */}
+                  {/* Payment method */}
                   <div>
                     <label className="mb-2 block text-xs text-muted">Método de pago</label>
                     <div className="grid grid-cols-3 gap-2">
@@ -563,16 +652,16 @@ export default function ProductosPage() {
 
                   <button
                     onClick={() => void registerTicket()}
-                    disabled={busy || selectedCount === 0 || !ticketTotal}
+                    disabled={busy || lineItems.length === 0 || !ticketTotal}
                     className="w-full rounded-lg bg-accent py-2.5 font-semibold text-white disabled:opacity-50"
                   >
                     {busy
                       ? <Loader2 className="mx-auto animate-spin" size={18} />
-                      : selectedCount === 0
-                        ? "Selecciona al menos un producto"
+                      : lineItems.length === 0
+                        ? "Agrega al menos un producto"
                         : !ticketTotal
                           ? "Ingresa el total del ticket"
-                          : `Registrar ticket — $${Number(ticketTotal).toLocaleString("es-MX")}`}
+                          : `Registrar ticket — $${(payMethod === "tarjeta" ? netAmount : grossAmount).toLocaleString("es-MX")}`}
                   </button>
 
                   <p className="text-center text-xs text-muted">
@@ -583,24 +672,124 @@ export default function ProductosPage() {
             </>
           )}
 
-          {/* Recent sales */}
-          {sales.length > 0 && (
+          {/* Tickets registrados */}
+          {ventas.length > 0 && (
             <div>
-              <h3 className="mb-3 font-semibold">Ventas recientes (este mes)</h3>
+              <div className="mb-3 flex items-center gap-2">
+                <Receipt size={16} className="text-muted" />
+                <h3 className="font-semibold">
+                  Tickets registrados <span className="text-sm font-normal text-muted">(este mes)</span>
+                </h3>
+              </div>
               <div className="space-y-2">
-                {sales.slice(0, 10).map((s) => {
-                  const product = products.find((p) => p.id === s.product_id);
-                  const variant = product?.variants.find((v) => v.id === s.variant_id);
+                {ventas.map((v) => {
+                  const isEditing = editingId === v.id;
+                  const editGross = Number(editAmount) || 0;
+                  const editCommission = editPayMethod === "tarjeta" ? +(editGross * CARD_COMMISSION).toFixed(2) : 0;
+                  const editNet = +(editGross - editCommission).toFixed(2);
+
+                  if (isEditing) {
+                    return (
+                      <div key={v.id} className="rounded-lg border border-accent/30 bg-panel p-4 text-sm space-y-3">
+                        <p className="text-xs font-medium text-muted uppercase tracking-wider">Editar ticket</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-xs text-muted">Total cobrado *</label>
+                            <input
+                              value={editAmount}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                              type="number"
+                              className="w-full rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none focus:border-accent"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-muted">Fecha</label>
+                            <input
+                              value={editDate}
+                              onChange={(e) => setEditDate(e.target.value)}
+                              type="date"
+                              className="w-full rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-xs text-muted">Método de pago</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {PAY_METHODS.map((m) => (
+                              <button
+                                key={m}
+                                onClick={() => setEditPayMethod(m)}
+                                className={`rounded-lg py-2 text-xs font-medium capitalize transition-colors ${
+                                  editPayMethod === m
+                                    ? "bg-accent/20 text-accent ring-1 ring-accent/40"
+                                    : "bg-panelSoft text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {editPayMethod === "tarjeta" && editGross > 0 && (
+                          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs">
+                            <div className="flex justify-between text-amber-300">
+                              <span>Comisión terminal (4.06%)</span>
+                              <span>−${editCommission.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="mt-0.5 flex justify-between font-semibold text-emerald-300">
+                              <span>Neto a guardar</span>
+                              <span>${editNet.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => void updateTicket()}
+                            disabled={busy || !editAmount}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent py-2 text-sm font-semibold text-white disabled:opacity-50"
+                          >
+                            {busy ? <Loader2 className="animate-spin" size={14} /> : <><Check size={14} /> Guardar</>}
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="rounded-lg border border-slate-700 px-3 py-2 text-slate-400 hover:text-white"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div key={s.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-panel px-4 py-3 text-sm">
-                      <div>
-                        <p className="font-medium">
-                          {product?.name ?? "Producto"}{variant ? ` — ${variant.name}` : ""}
-                        </p>
-                        <p className="text-xs text-muted">
-                          {s.quantity} unidad{s.quantity !== 1 ? "es" : ""} ·{" "}
-                          {new Date(s.sale_date + "T12:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
-                        </p>
+                    <div key={v.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-panel px-4 py-3 text-sm">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-emerald-400">${Number(v.amount).toLocaleString("es-MX")}</span>
+                          {v.payment_method && (
+                            <span className="rounded-full bg-panelSoft px-2 py-0.5 text-xs capitalize text-muted">{v.payment_method}</span>
+                          )}
+                          <span className="text-xs text-muted">
+                            {new Date(v.entry_date + "T12:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                          </span>
+                        </div>
+                        {v.notes && (
+                          <p className="mt-0.5 truncate text-xs text-slate-400">{v.notes}</p>
+                        )}
+                      </div>
+                      <div className="ml-3 flex shrink-0 items-center gap-2">
+                        <button
+                          onClick={() => startEdit(v)}
+                          className="text-slate-600 transition-colors hover:text-accent"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => void deleteTicket(v.id)}
+                          className="text-slate-600 transition-colors hover:text-red-400"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   );
