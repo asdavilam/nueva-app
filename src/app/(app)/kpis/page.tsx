@@ -12,6 +12,15 @@ function currentYearMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function daysElapsedInMonth(yearMonth: string): number {
+  const [year, month] = yearMonth.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  const now = new Date();
+  const currentYM = currentYearMonth();
+  if (yearMonth === currentYM) return now.getDate();
+  return lastDay;
+}
+
 export default function KpisPage() {
   const { session } = useAuth();
   const [rows, setRows] = useState<KpiRow[]>([]);
@@ -20,6 +29,7 @@ export default function KpisPage() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [autoFilled, setAutoFilled] = useState(false);
+  const [expensesByCategory, setExpensesByCategory] = useState<Record<string, number>>({});
 
   const [form, setForm] = useState({
     periodMonth: currentYearMonth(),
@@ -66,22 +76,32 @@ export default function KpisPage() {
 
     const { data: entries } = await supabase
       .from("finance_entries")
-      .select("entry_type, amount")
+      .select("entry_type, amount, category")
       .eq("user_id", userId)
       .gte("entry_date", from)
       .lte("entry_date", to);
 
     setAutoLoading(false);
 
-    if (!entries || entries.length === 0) return;
+    if (!entries || entries.length === 0) {
+      setExpensesByCategory({});
+      return;
+    }
 
-    const sales = entries
+    const gastos = entries.filter((e) => e.entry_type === "gasto");
+    const sales = +entries
       .filter((e) => e.entry_type === "venta")
-      .reduce((a, c) => a + Number(c.amount), 0);
-    const expenses = entries
-      .filter((e) => e.entry_type === "gasto")
-      .reduce((a, c) => a + Number(c.amount), 0);
+      .reduce((a, c) => a + Number(c.amount), 0)
+      .toFixed(2);
+    const expenses = +gastos.reduce((a, c) => a + Number(c.amount), 0).toFixed(2);
     const tickets = entries.filter((e) => e.entry_type === "venta").length;
+
+    const byCategory = gastos.reduce<Record<string, number>>((acc, e) => {
+      const cat = (e.category as string) || "otro";
+      acc[cat] = (acc[cat] || 0) + Number(e.amount);
+      return acc;
+    }, {});
+    setExpensesByCategory(byCategory);
 
     setForm((prev) => ({
       ...prev,
@@ -294,8 +314,9 @@ export default function KpisPage() {
             <div>
               <p className="text-xs text-muted">Tickets por día</p>
               <p className="font-bold">
-                {Math.round(Number(form.tickets) / 30)}
+                ~{Math.round(Number(form.tickets) / daysElapsedInMonth(form.periodMonth))}
               </p>
+              <p className="text-xs text-muted">{form.tickets} total</p>
             </div>
           </div>
         )}
@@ -310,6 +331,16 @@ export default function KpisPage() {
         </button>
         {feedback && <p className="mt-3 text-sm text-emerald-400">{feedback}</p>}
       </div>
+
+      {/* Costo operativo */}
+      {Object.keys(expensesByCategory).length > 0 && (
+        <CostoOperativo
+          byCategory={expensesByCategory}
+          totalExpenses={Number(form.expenses || 0)}
+          totalSales={Number(form.sales || 0)}
+          periodMonth={form.periodMonth}
+        />
+      )}
 
       {/* History */}
       {rows.length > 0 && (
@@ -353,6 +384,81 @@ export default function KpisPage() {
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CostoOperativo({
+  byCategory, totalExpenses, totalSales, periodMonth,
+}: {
+  byCategory: Record<string, number>;
+  totalExpenses: number;
+  totalSales: number;
+  periodMonth: string;
+}) {
+  const resultado = totalSales - totalExpenses;
+  const sorted = Object.entries(byCategory).sort(([, a], [, b]) => b - a);
+  const hasNomina = "nómina" in byCategory;
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-panel p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold">Costo operativo mensual</h3>
+          <p className="text-xs text-muted capitalize">
+            {new Date(periodMonth + "-01T12:00:00").toLocaleDateString("es-MX", { month: "long", year: "numeric" })}
+          </p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-sm font-bold ${resultado >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+          {resultado >= 0 ? "+" : ""}${resultado.toLocaleString("es-MX")}
+        </span>
+      </div>
+
+      <div className="space-y-1.5">
+        {sorted.map(([cat, amt]) => (
+          <div key={cat} className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-slate-600" />
+              <span className="capitalize text-slate-300">{cat}</span>
+            </div>
+            <span className="font-medium text-red-400">−${amt.toLocaleString("es-MX")}</span>
+          </div>
+        ))}
+        <div className="mt-3 border-t border-slate-700 pt-3">
+          <div className="flex items-center justify-between text-sm font-semibold">
+            <span className="text-muted">Total gastos</span>
+            <span className="text-red-400">−${totalExpenses.toLocaleString("es-MX")}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-sm font-semibold">
+            <span className="text-muted">Ventas</span>
+            <span className="text-emerald-400">+${totalSales.toLocaleString("es-MX")}</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-panelSoft px-3 py-2 text-sm font-bold">
+            <span>Resultado</span>
+            <span className={resultado >= 0 ? "text-emerald-400" : "text-red-400"}>
+              {resultado >= 0 ? "+" : ""}${resultado.toLocaleString("es-MX")}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {!hasNomina && (
+        <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-300">
+          <p className="font-semibold">⚠️ No hay gastos de nómina registrados</p>
+          <p className="mt-0.5 text-amber-400/80">
+            Si no incluyes tu propio sueldo como gasto, el resultado real es menor de lo que aparece aquí.
+          </p>
+        </div>
+      )}
+
+      {resultado < 0 && (
+        <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-xs text-red-300">
+          <p className="font-semibold">🔴 Gastos superan ventas este mes</p>
+          <p className="mt-0.5 text-red-400/80">
+            Necesitas vender ${Math.abs(resultado).toLocaleString("es-MX")} más para cubrir tus costos. Revisa qué categoría pesa más.
+          </p>
         </div>
       )}
     </div>

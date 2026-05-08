@@ -40,6 +40,7 @@ export default function ProductosPage() {
 
   // ── Ticket ──
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [fixedCosts, setFixedCosts] = useState("");
 
   // ── Edit ticket ──
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -289,6 +290,13 @@ export default function ProductosPage() {
   const totalQty = reports.reduce((a, c) => a + c.qty, 0);
   const daysWithSales = new Set(sales.map((s) => s.sale_date)).size;
   const lineItemCount = lineItems.reduce((a, li) => a + li.qty, 0);
+
+  const ventasByDate = ventas.reduce<Record<string, VentaEntry[]>>((acc, v) => {
+    if (!acc[v.entry_date]) acc[v.entry_date] = [];
+    acc[v.entry_date].push(v);
+    return acc;
+  }, {});
+  const ventasDates = Object.keys(ventasByDate).sort((a, b) => b.localeCompare(a));
 
   if (loading) return (
     <div className="flex h-64 items-center justify-center">
@@ -602,6 +610,7 @@ export default function ProductosPage() {
                       value={ticketTotal}
                       onChange={(e) => setTicketTotal(e.target.value)}
                       type="number"
+                      inputMode="decimal"
                       placeholder="$0.00 — lo que cobró el ticket"
                       className="w-full rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none focus:border-accent"
                     />
@@ -681,8 +690,22 @@ export default function ProductosPage() {
                   Tickets registrados <span className="text-sm font-normal text-muted">(este mes)</span>
                 </h3>
               </div>
-              <div className="space-y-2">
-                {ventas.map((v) => {
+              <div className="space-y-4">
+                {ventasDates.map((date) => {
+                  const dayEntries = ventasByDate[date];
+                  const dayTotal = dayEntries.reduce((a, v) => a + Number(v.amount), 0);
+                  return (
+                    <div key={date}>
+                      <div className="mb-2 flex items-center justify-between px-1">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+                          {new Date(date + "T12:00:00").toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "short" })}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {dayEntries.length} ticket{dayEntries.length !== 1 ? "s" : ""} · <span className="font-medium text-emerald-400">${dayTotal.toLocaleString("es-MX")}</span>
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                {dayEntries.map((v) => {
                   const isEditing = editingId === v.id;
                   const editGross = Number(editAmount) || 0;
                   const editCommission = editPayMethod === "tarjeta" ? +(editGross * CARD_COMMISSION).toFixed(2) : 0;
@@ -699,6 +722,7 @@ export default function ProductosPage() {
                               value={editAmount}
                               onChange={(e) => setEditAmount(e.target.value)}
                               type="number"
+                              inputMode="decimal"
                               className="w-full rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none focus:border-accent"
                             />
                           </div>
@@ -794,6 +818,10 @@ export default function ProductosPage() {
                     </div>
                   );
                 })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -830,6 +858,31 @@ export default function ProductosPage() {
                   <p className="mt-1 text-2xl font-bold">{daysWithSales}</p>
                   <p className="text-xs text-muted">días con ventas</p>
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-panel p-4">
+                <p className="mb-1 text-sm font-medium">Costo por unidad vendida</p>
+                <p className="mb-3 text-xs text-muted">
+                  Ingresa tus gastos fijos del mes para saber cuánto te cuesta cada unidad vendida.
+                </p>
+                <input
+                  value={fixedCosts}
+                  onChange={(e) => setFixedCosts(e.target.value)}
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Gastos fijos del mes ($)"
+                  className="w-full rounded-lg border border-slate-700 bg-panelSoft px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+                {fixedCosts && Number(fixedCosts) > 0 && totalQty > 0 && (
+                  <div className="mt-3 flex items-center justify-between rounded-lg bg-panelSoft px-4 py-3 text-sm">
+                    <span className="text-muted">
+                      ${Number(fixedCosts).toLocaleString("es-MX")} ÷ {totalQty} unidades
+                    </span>
+                    <span className="font-bold text-accent">
+                      ${(Number(fixedCosts) / totalQty).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / unidad
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>
